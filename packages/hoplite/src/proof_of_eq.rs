@@ -2,7 +2,6 @@ use crate::{
     circuit_vals::{CVEqualityProof, FromCircuitVal},
     commitments::MultiCommitGens,
     utils::to_fq,
-    Fq,
 };
 use libspartan::{
     group::CompressedGroup,

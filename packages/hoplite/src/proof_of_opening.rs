@@ -2,7 +2,6 @@ use crate::{
     circuit_vals::{CVKnowledgeProof, FromCircuitVal},
     commitments::{Commitments, MultiCommitGens},
     utils::to_fq,
-    Fq,
 };
 use libspartan::{
     group::CompressedGroup,

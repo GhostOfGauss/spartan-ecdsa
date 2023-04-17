@@ -94,6 +94,7 @@ impl<const N_ROUNDS: usize, const DIMENSION: usize, F: PrimeField>
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn verify<'v>(
         &self,
         ctx: &mut Context<'v, F>,
@@ -105,7 +106,7 @@ impl<const N_ROUNDS: usize, const DIMENSION: usize, F: PrimeField>
         transcript: &mut Transcript,
     ) -> (EcPoint<F, CRTInteger<'v, F>>, [CRTInteger<'v, F>; N_ROUNDS]) {
         let limb_bits = self.fp_chip.limb_bits;
-        let num_limbs = self.fp_chip.num_limbs;
+        let _num_limbs = self.fp_chip.num_limbs;
         let mut r = vec![];
 
         for i in 0..N_ROUNDS {
@@ -150,6 +151,7 @@ impl<const N_ROUNDS: usize, const DIMENSION: usize, F: PrimeField>
 
             let tau_0 = if target_sum_identity {
                 fixed_base::scalar_multiply(
+                    // isn't this 0?
                     &self.fp_chip,
                     ctx,
                     &Secq256k1::identity().to_affine(),
@@ -242,6 +244,7 @@ impl<const N_ROUNDS: usize, const DIMENSION: usize, F: PrimeField>
             }
 
             let zk_dot_prod_chip = ZKDotProdChip::construct(
+                // Why construct a new one when that's part of this struct?
                 self.ecc_chip.clone(),
                 self.fq_chip.clone(),
                 self.pedersen_chip.clone(),

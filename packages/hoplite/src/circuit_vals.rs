@@ -1,4 +1,5 @@
 use crate::{Fp, Fq};
+use libspartan::nizk::DotProductProofLog;
 use libspartan::{
     dense_mlpoly::{PolyCommitment, PolyEvalProof},
     group::CompressedGroup,
@@ -25,90 +26,86 @@ use std::option::Option;
 // ############################
 
 #[derive(Debug)]
-pub struct CVSumCheckProof {
-    pub comm_polys: Vec<Option<Secq256k1>>,
-    pub comm_evals: Vec<Option<Secq256k1>>,
-    pub proofs: Vec<CVDotProdProof>,
+pub struct CVSumCheckProof<const N_ROUNDS: usize, const DIMENSION: usize> {
+    pub comm_polys: [Option<Secq256k1>; N_ROUNDS],
+    pub comm_evals: [Option<Secq256k1>; N_ROUNDS],
+    pub proofs: [CVDotProdProof<DIMENSION>; N_ROUNDS],
 }
 
-impl CVSumCheckProof {
-    pub fn without_witness(num_rounds: usize, poly_degree: usize) -> Self {
+impl<const N_ROUNDS: usize, const DIMENSION: usize> CVSumCheckProof<N_ROUNDS, DIMENSION> {
+    pub fn without_witness(_num_rounds: usize, poly_degree: usize) -> Self {
         Self {
-            comm_polys: vec![None; num_rounds],
-            comm_evals: vec![None; num_rounds],
+            comm_polys: [None; N_ROUNDS],
+            comm_evals: [None; N_ROUNDS],
             // We pass poly_degree + 1 because we're counting the degree 0 term as well.
-            proofs: vec![CVDotProdProof::without_witness(poly_degree + 1); num_rounds],
+            proofs: vec![CVDotProdProof::without_witness(poly_degree + 1); N_ROUNDS]
+                .try_into()
+                .unwrap(), // TODO: Fix this unwrap and remove unused `num_rounds`
         }
     }
 }
 
-pub struct CVBulletReductionProof {
-    pub L_vec: Vec<Option<Secq256k1>>,
-    pub R_vec: Vec<Option<Secq256k1>>,
+impl<const N_ROUNDS: usize, const DIMENSION: usize> Default
+    for CVSumCheckProof<N_ROUNDS, DIMENSION>
+{
+    fn default() -> Self {
+        Self::without_witness(N_ROUNDS, DIMENSION) // TODO: is DIMENSION right here ?
+    }
 }
 
-impl CVBulletReductionProof {
+pub struct CVBulletReductionProof<const N_LOG: usize> {
+    pub L_vec: [Option<Secq256k1>; N_LOG],
+    pub R_vec: [Option<Secq256k1>; N_LOG],
+}
+
+impl<const N_LOG: usize> CVBulletReductionProof<N_LOG> {
+    // TODO: N is vec_len/2
     fn without_witness(vec_len: usize) -> Self {
-        assert!(vec_len % 2 == 0, "vec_len must be even");
+        assert!(vec_len % 2 == 0, "vec_len must be even"); // TODO: how to replace vec_len?
 
         Self {
-            L_vec: vec![None; vec_len / 2],
-            R_vec: vec![None; vec_len / 2],
+            L_vec: [None; N_LOG],
+            R_vec: [None; N_LOG],
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct CVDotProdProof {
+pub struct CVDotProdProof<const DIMENSION: usize> {
     pub delta: Option<Secq256k1>,
     pub beta: Option<Secq256k1>,
-    pub z: Vec<Option<Fq>>,
+    pub z: [Option<Fq>; DIMENSION],
     pub z_delta: Option<Fq>,
     pub z_beta: Option<Fq>,
 }
 
-impl CVDotProdProof {
-    fn without_witness(vec_len: usize) -> Self {
+impl<const DIMENSION: usize> CVDotProdProof<DIMENSION> {
+    fn without_witness(_vec_len: usize) -> Self {
+        // TODO: Removed unused args
         Self {
             delta: None,
             beta: None,
-            z: vec![None; vec_len],
+            z: [None; DIMENSION],
             z_delta: None,
             z_beta: None,
         }
     }
 }
 
+#[derive(Default)]
 pub struct CVEqualityProof {
     pub alpha: Option<Secq256k1>,
     pub z: Option<Fq>,
 }
 
-impl Default for CVEqualityProof {
-    fn default() -> Self {
-        Self {
-            alpha: None,
-            z: None,
-        }
-    }
-}
-
+#[derive(Default)]
 pub struct CVKnowledgeProof {
     pub alpha: Option<Secq256k1>,
     pub z1: Option<Fq>,
     pub z2: Option<Fq>,
 }
 
-impl Default for CVKnowledgeProof {
-    fn default() -> Self {
-        Self {
-            alpha: None,
-            z1: None,
-            z2: None,
-        }
-    }
-}
-
+#[derive(Default)]
 pub struct CVProductProof {
     pub alpha: Option<Secq256k1>,
     pub beta: Option<Secq256k1>,
@@ -116,26 +113,18 @@ pub struct CVProductProof {
     pub z: [Option<Fq>; 5],
 }
 
-impl Default for CVProductProof {
-    fn default() -> Self {
-        Self {
-            alpha: None,
-            beta: None,
-            delta: None,
-            z: [None; 5],
-        }
-    }
-}
-
-pub struct CVDotProductProofLog {
-    pub bullet_reduction_proof: CVBulletReductionProof,
+/// A `DotProductProofLog` proves a relation `<a, x> = y` for
+/// private witness `x, y` using an `N_LOG`-step Bulletproof
+/// reduction, where `N` is the length of `a` and `x`.
+pub struct CVDotProductProofLog<const N_LOG: usize> {
+    pub bullet_reduction_proof: CVBulletReductionProof<N_LOG>,
     pub delta: Option<Secq256k1>,
     pub beta: Option<Secq256k1>,
     pub z1: Option<Fq>,
     pub z2: Option<Fq>,
 }
 
-impl CVDotProductProofLog {
+impl<const N_LOG: usize> CVDotProductProofLog<N_LOG> {
     fn without_witness(vec_len: usize) -> Self {
         Self {
             bullet_reduction_proof: CVBulletReductionProof::without_witness(vec_len),
@@ -147,11 +136,11 @@ impl CVDotProductProofLog {
     }
 }
 
-pub struct CVPolyEvalProof {
-    pub proof: CVDotProductProofLog,
+pub struct CVPolyEvalProof<const N_LOG: usize> {
+    pub proof: CVDotProductProofLog<N_LOG>,
 }
 
-impl CVPolyEvalProof {
+impl<const N_LOG: usize> CVPolyEvalProof<N_LOG> {
     pub fn without_witness(vec_len: usize) -> Self {
         Self {
             proof: CVDotProductProofLog::without_witness(vec_len),
@@ -159,14 +148,26 @@ impl CVPolyEvalProof {
     }
 }
 
-pub struct CVPolyCommitment {
-    pub C: Vec<Option<Secq256k1>>,
+impl<const N_LOG: usize> Default for CVPolyEvalProof<N_LOG> {
+    fn default() -> Self {
+        Self::without_witness(N_LOG) // TODO: right size?
+    }
 }
 
-impl CVPolyCommitment {
-    pub fn without_witness(vec_len: usize) -> Self {
-        let C = vec![None; vec_len];
-        Self { C }
+pub struct CVPolyCommitment<const N: usize> {
+    pub C: [Option<Secq256k1>; N],
+}
+
+impl<const N: usize> CVPolyCommitment<N> {
+    pub fn without_witness(_vec_len: usize) -> Self {
+        // TODO: remove unused arg
+        Self { C: [None; N] }
+    }
+}
+
+impl<const N: usize> Default for CVPolyCommitment<N> {
+    fn default() -> Self {
+        Self::without_witness(N)
     }
 }
 
@@ -200,9 +201,7 @@ impl FromCircuitVal<Secq256k1> for CompressedGroup {
         x.reverse();
         y.reverse();
 
-        let result = CompressedGroup::from_affine_coordinates(&x.into(), &y.into(), true);
-
-        result
+        CompressedGroup::from_affine_coordinates(&x.into(), &y.into(), true)
     }
 }
 
@@ -254,8 +253,44 @@ impl ToCircuitVal<CVProductProof> for ProductProof {
     }
 }
 
-impl ToCircuitVal<CVPolyEvalProof> for PolyEvalProof {
-    fn to_circuit_val(&self) -> CVPolyEvalProof {
+impl<const N_LOG: usize> ToCircuitVal<CVDotProductProofLog<N_LOG>> for DotProductProofLog {
+    fn to_circuit_val(&self) -> CVDotProductProofLog<N_LOG> {
+        let beta = Some(self.beta.to_circuit_val());
+        let delta = Some(self.delta.to_circuit_val());
+        let z1 = Some(self.z1.to_circuit_val());
+        let z2 = Some(self.z2.to_circuit_val());
+
+        let cv_bullet_reduction_proof = CVBulletReductionProof {
+            L_vec: self
+                .bullet_reduction_proof
+                .L_vec
+                .iter()
+                .map(|val| Some(val.compress().to_circuit_val()))
+                .collect::<Vec<Option<Secq256k1>>>()
+                .try_into()
+                .unwrap(),
+            R_vec: self
+                .bullet_reduction_proof
+                .R_vec
+                .iter()
+                .map(|val| Some(val.compress().to_circuit_val()))
+                .collect::<Vec<Option<Secq256k1>>>()
+                .try_into()
+                .unwrap(),
+        };
+
+        CVDotProductProofLog {
+            delta,
+            beta,
+            z1,
+            z2,
+            bullet_reduction_proof: cv_bullet_reduction_proof,
+        }
+    }
+}
+
+impl<const N_LOG: usize> ToCircuitVal<CVPolyEvalProof<N_LOG>> for PolyEvalProof {
+    fn to_circuit_val(&self) -> CVPolyEvalProof<N_LOG> {
         let dotprod_proof_log = &self.proof;
         let beta = Some(dotprod_proof_log.beta.to_circuit_val());
         let delta = Some(dotprod_proof_log.delta.to_circuit_val());
@@ -295,8 +330,8 @@ impl ToCircuitVal<CVPolyEvalProof> for PolyEvalProof {
     }
 }
 
-impl ToCircuitVal<CVPolyCommitment> for PolyCommitment {
-    fn to_circuit_val(&self) -> CVPolyCommitment {
+impl<const N: usize> ToCircuitVal<CVPolyCommitment<N>> for PolyCommitment {
+    fn to_circuit_val(&self) -> CVPolyCommitment<N> {
         let C = self
             .C
             .iter()
@@ -332,20 +367,17 @@ impl ToCircuitVal<Secq256k1> for CompressedGroup {
         let b = Fp::from_raw([7, 0, 0, 0]);
         let y = (x3 + b).sqrt();
 
-        let res = y
-            .map(|y| {
-                let y = Fp::conditional_select(&-y, &y, y.is_odd().ct_eq(&y_odd));
-                let p = Secq256k1Affine::from_xy(x, y).unwrap();
-                p.to_curve()
-            })
-            .unwrap();
-
-        res
+        y.map(|y| {
+            let y = Fp::conditional_select(&-y, &y, y.is_odd().ct_eq(&y_odd));
+            let p = Secq256k1Affine::from_xy(x, y).unwrap();
+            p.to_curve()
+        })
+        .unwrap()
     }
 }
 
-impl ToCircuitVal<CVDotProdProof> for DotProductProof {
-    fn to_circuit_val(&self) -> CVDotProdProof {
+impl<const DIMENSION: usize> ToCircuitVal<CVDotProdProof<DIMENSION>> for DotProductProof {
+    fn to_circuit_val(&self) -> CVDotProdProof<DIMENSION> {
         CVDotProdProof {
             delta: Some(self.delta.to_circuit_val()),
             beta: Some(self.beta.to_circuit_val()),
@@ -362,8 +394,10 @@ impl ToCircuitVal<CVDotProdProof> for DotProductProof {
     }
 }
 
-impl ToCircuitVal<CVSumCheckProof> for ZKSumcheckInstanceProof {
-    fn to_circuit_val(&self) -> CVSumCheckProof {
+impl<const N_ROUNDS: usize, const DIMENSION: usize>
+    ToCircuitVal<CVSumCheckProof<N_ROUNDS, DIMENSION>> for ZKSumcheckInstanceProof
+{
+    fn to_circuit_val(&self) -> CVSumCheckProof<N_ROUNDS, DIMENSION> {
         let mut proofs = vec![];
         let mut comm_polys = vec![];
         let mut comm_evals = vec![];
@@ -374,15 +408,15 @@ impl ToCircuitVal<CVSumCheckProof> for ZKSumcheckInstanceProof {
         }
 
         CVSumCheckProof {
-            comm_polys,
-            comm_evals,
-            proofs,
+            comm_polys: comm_polys.try_into().unwrap(),
+            comm_evals: comm_evals.try_into().unwrap(),
+            proofs: proofs.try_into().unwrap(),
         }
     }
 }
 
-impl ToCircuitVal<CVBulletReductionProof> for BulletReductionProof {
-    fn to_circuit_val(&self) -> CVBulletReductionProof {
+impl<const N: usize> ToCircuitVal<CVBulletReductionProof<N>> for BulletReductionProof {
+    fn to_circuit_val(&self) -> CVBulletReductionProof<N> {
         let mut L_vec = vec![];
         let mut R_vec = vec![];
         for i in 0..self.L_vec.len() {
@@ -390,6 +424,9 @@ impl ToCircuitVal<CVBulletReductionProof> for BulletReductionProof {
             R_vec.push(Some(self.R_vec[i].to_circuit_val()));
         }
 
-        CVBulletReductionProof { L_vec, R_vec }
+        CVBulletReductionProof {
+            L_vec: L_vec.try_into().unwrap(),
+            R_vec: R_vec.try_into().unwrap(), // TODO: Change type of BulletReductionProof ?
+        }
     }
 }

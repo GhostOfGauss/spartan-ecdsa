@@ -14,10 +14,7 @@ use hoplite::{
 };
 use libspartan::transcript::{ProofTranscript, Transcript};
 
-use super::{
-    secq256k1::Secq256k1Chip,
-    utils::{Assign, AssignArray},
-};
+use super::{secq256k1::Secq256k1Chip, utils::Assign};
 
 #[derive(Clone, Debug)]
 pub struct AssignedZKDotProdProof<'v, const DIMENSION: usize, F: PrimeField> {
@@ -102,6 +99,7 @@ impl<const DIMENSION: usize, F: PrimeField> ZKDotProdChip<DIMENSION, F> {
         sum
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn verify<'v>(
         &self,
         ctx: &mut Context<'v, F>,
@@ -147,7 +145,7 @@ impl<const DIMENSION: usize, F: PrimeField> ZKDotProdChip<DIMENSION, F> {
         // (13)
         let epsilon_c = self.ecc_chip.scalar_mult(
             ctx,
-            &com_poly,
+            com_poly,
             &c.truncation.limbs,
             max_bits,
             self.window_bits,
@@ -161,14 +159,14 @@ impl<const DIMENSION: usize, F: PrimeField> ZKDotProdChip<DIMENSION, F> {
         // com(z, z_delta)
         let rhs = self
             .pedersen_chip
-            .multi_commit(ctx, &proof.z, &proof.z_delta, &gens_n);
+            .multi_commit(ctx, &proof.z, &proof.z_delta, gens_n);
 
         self.ecc_chip.assert_equal(ctx, &lhs, &rhs);
 
         // (14)
         let tau_c = self
             .ecc_chip
-            .scalar_mult(ctx, &tau, &c.truncation.limbs, max_bits, 4);
+            .scalar_mult(ctx, tau, &c.truncation.limbs, max_bits, 4);
 
         // (tau * c) + beta
         let lhs = self.ecc_chip.add_unequal(ctx, &tau_c, &proof.beta, true);
@@ -178,7 +176,7 @@ impl<const DIMENSION: usize, F: PrimeField> ZKDotProdChip<DIMENSION, F> {
         // com((a ・ z), z_beta)
         let rhs = self
             .pedersen_chip
-            .commit(ctx, &a_dot_z, &proof.z_beta, &gens_1);
+            .commit(ctx, &a_dot_z, &proof.z_beta, gens_1);
 
         self.ecc_chip.assert_equal(ctx, &lhs, &rhs);
     }

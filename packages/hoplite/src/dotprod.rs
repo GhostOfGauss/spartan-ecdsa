@@ -8,7 +8,7 @@ use libspartan::{
     group::CompressedGroup,
     transcript::{AppendToTranscript, ProofTranscript, Transcript},
 };
-use secpq_curves::{group::Curve, Secq256k1};
+use secpq_curves::Secq256k1;
 
 // Utilities
 pub fn dot_prod(x: &[Fq], a: &[Fq]) -> Fq {
@@ -22,10 +22,10 @@ pub fn dot_prod(x: &[Fq], a: &[Fq]) -> Fq {
 
 // https://eprint.iacr.org/2017/1132.pdf
 // P.18, Figure 6, steps 4
-pub fn verify(
+pub fn verify<const DIMENSION: usize>(
     tau: &Secq256k1,
     a: &[Fq],
-    proof: &CVDotProdProof,
+    proof: &CVDotProdProof<DIMENSION>,
     com_poly: &Secq256k1,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,

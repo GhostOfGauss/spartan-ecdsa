@@ -1,12 +1,15 @@
 [package]
+edition = "2021"
 name = "hoplite"
 version = "0.1.0"
-edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-secq256k1 = { path = "../secq256k1" }
-spartan = { path = "../Spartan-secq" }
-sha3 = { version = "0.8.2" }
-secpq_curves = { git = "https://github.com/DanTehrani/secpq_curves.git" }
+secpq_curves = {git = "https://github.com/DanTehrani/secpq_curves.git"}
+secq256k1 = {path = "../secq256k1"}
+sha3 = {version = "0.8.2"}
+spartan = {path = "../Spartan-secq"}
+
+[dev-dependencies]
+rand_core = {version = "0.6", default-features = false}

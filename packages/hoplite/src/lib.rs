@@ -36,7 +36,14 @@ pub fn eq_eval(t: &[Fq], x: &[Fq]) -> Fq {
 /**
  * Verify a SpartanNIZK proof
  */
-pub fn verify_nizk(
+pub fn verify_nizk<
+    const NUM_CONSTRAINTS_LOG: usize,
+    const NUM_VARS_LOG: usize,
+    const Z_MATRIX_COLS: usize,
+    const Z_MATRIX_COLS_LOG: usize,
+    const DIMENSION_ONE: usize,
+    const DIMENSION_TWO: usize,
+>(
     inst: &Instance,
     input: &[libspartan::scalar::Scalar],
     proof: &NIZK,
@@ -73,7 +80,8 @@ pub fn verify_nizk(
     let gens_pc_1: MultiCommitGens = gens_pc_gens.gens_1.clone().into();
     let gens_pc_n: MultiCommitGens = gens_pc_gens.gens_n.clone().into();
 
-    let sc_proof_phase1: CVSumCheckProof = proof.r1cs_sat_proof.sc_proof_phase1.to_circuit_val();
+    let sc_proof_phase1: CVSumCheckProof<NUM_CONSTRAINTS_LOG, DIMENSION_ONE> =
+        proof.r1cs_sat_proof.sc_proof_phase1.to_circuit_val();
 
     // The expected sum of the phase 1 sum-check is zero
     let phase1_expected_sum = Fq::zero().commit(&Fq::zero(), &gens_1);
@@ -161,7 +169,8 @@ pub fn verify_nizk(
 
     // Verify the sum-check over M(x)
 
-    let sc_proof_phase2: CVSumCheckProof = proof.r1cs_sat_proof.sc_proof_phase2.to_circuit_val();
+    let sc_proof_phase2: CVSumCheckProof<NUM_VARS_LOG, DIMENSION_TWO> =
+        proof.r1cs_sat_proof.sc_proof_phase2.to_circuit_val();
     // comm_claim_post_phase2: Claimed evaluation of the final round polynomial over ry
     let (comm_claim_post_phase2, ry) = sumcheck::verify(
         2,
@@ -179,6 +188,7 @@ pub fn verify_nizk(
     // We use proof_log of dot prod to verify that.
 
     // comm_vars: Commitment to the evaluations of Z(X) over the boolean hypercube
+    // More precisely: a commitment to the *rows* of the witness Z cast as matrix.
     let comm_vars = proof
         .r1cs_sat_proof
         .comm_vars
@@ -190,7 +200,8 @@ pub fn verify_nizk(
     let poly_eval_proof = &proof.r1cs_sat_proof.proof_eval_vars_at_ry;
     let comm_vars_at_ry = proof.r1cs_sat_proof.comm_vars_at_ry.to_circuit_val();
 
-    poly_evaluation_proof::verify(
+    poly_evaluation_proof::verify::<Z_MATRIX_COLS, Z_MATRIX_COLS_LOG>(
+        // TODO: sizes?
         &gens_pc_1,
         &gens_pc_n,
         &ry[1..],
@@ -217,7 +228,7 @@ pub fn verify_nizk(
     let comm_eval_Z_at_ry = comm_vars_at_ry * (Fq::one() - ry[0]) + comm_poly_input_eval * ry[0];
 
     let (claimed_rx, claimed_ry) = &proof.r;
-    let inst_evals = inst.inst.evaluate(&claimed_rx, &claimed_ry);
+    let inst_evals = inst.inst.evaluate(claimed_rx, claimed_ry);
 
     let (eval_A_r, eval_B_r, eval_C_r) = inst_evals;
 
@@ -245,62 +256,41 @@ mod tests {
 
     #[test]
     fn test_verify_nizk() {
+        use libspartan::r1csinstance::R1CSInstance;
         // parameters of the R1CS instance
-        let num_cons = 2;
-        let num_vars = 5;
-        let num_inputs = 0;
+        const NUM_CONSTRAINTS: usize = 16;
+        const NUM_CONSTRAINTS_LOG: usize = 4;
+        const NUM_VARS: usize = 16;
+        const NUM_INPUTS: usize = 2;
+        const NUM_VARS_LOG: usize = 5; // padded log size of vars + inputs
+        const Z_MATRIX_COLS: usize = 4;
+        const Z_MATRIX_COLS_LOG: usize = 2;
+        // These don't change:
+        const DIMENSION_ONE: usize = 4;
+        const DIMENSION_TWO: usize = 3;
 
-        // The constraint
-        // x ** 2 + y = ~out
+        let (instance, witness, inputs) =
+            R1CSInstance::produce_synthetic_r1cs(NUM_CONSTRAINTS, NUM_VARS, NUM_INPUTS);
+        let digest = instance.get_digest();
+        let instance = Instance {
+            inst: instance,
+            digest,
+        };
 
-        // Constraints in R1CS format
-        // sym_1 = x * x
-        // ~out = sym_1 + y
+        let assignment_inputs = InputsAssignment { assignment: inputs };
+        let assignment_vars = VarsAssignment {
+            assignment: witness,
+        };
 
-        // Variables
-        // 'y', 'x', 'sym_1', '~out', '~one'
-
-        let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new(); // <row, column, value>
-        let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
-        let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
-
-        let one = Fq::one().to_bytes();
-
-        // sym_1 = x * x
-        A.push((0, 1, one));
-        B.push((0, 1, one));
-        C.push((0, 2, one));
-
-        // ~out = sym_1 + y
-        A.push((1, 0, one));
-        A.push((1, 2, one));
-        B.push((1, 4, one));
-        C.push((1, 3, one));
-
-        let vars = [
-            Fq::from(2).to_bytes(),
-            Fq::from(2).to_bytes(),
-            Fq::from(4).to_bytes(),
-            Fq::from(6).to_bytes(),
-            Fq::from(1).to_bytes(),
-        ];
-
-        let inputs = vec![];
-
-        let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
-        let assignment_vars = VarsAssignment::new(&vars).unwrap();
-
-        // Check if instance is satisfiable
-        let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
-        let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+        let res = instance.is_sat(&assignment_vars, &assignment_inputs);
         assert!(res.unwrap(), "should be satisfied");
 
-        let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+        let gens = NIZKGens::new(NUM_CONSTRAINTS, NUM_VARS, NUM_INPUTS);
 
         let mut prover_transcript = Transcript::new(b"test_verify");
 
         let proof = NIZK::prove(
-            &inst,
+            &instance,
             assignment_vars,
             &assignment_inputs,
             &gens,
@@ -310,10 +300,22 @@ mod tests {
         let mut verifier_transcript = Transcript::new(b"test_verify");
 
         // Just running the verification of the original implementation as a reference
-        let _result = proof.verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens);
+        let _result = proof.verify(
+            &instance,
+            &assignment_inputs,
+            &mut verifier_transcript,
+            &gens,
+        );
 
         // In the phase 1 sum check com_eval uses gens_1 and dot product uses gens_4
         // com_eval uses gens_1, and dot product uses gen_3
-        verify_nizk(&inst, &assignment_inputs.assignment, &proof, &gens);
+        verify_nizk::<
+            NUM_CONSTRAINTS_LOG,
+            NUM_VARS_LOG,
+            Z_MATRIX_COLS,
+            Z_MATRIX_COLS_LOG,
+            DIMENSION_ONE,
+            DIMENSION_TWO,
+        >(&instance, &assignment_inputs.assignment, &proof, &gens);
     }
 }
