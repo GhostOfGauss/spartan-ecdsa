@@ -11,10 +11,11 @@ pub use primeorder::elliptic_curve::group::Group;
 use primeorder::elliptic_curve::sec1::FromEncodedPoint;
 use primeorder::elliptic_curve::sec1::ToEncodedPoint;
 use primeorder::elliptic_curve::subtle::CtOption;
+use serde::{Deserialize, Serialize};
 
 pub type AffinePointCore = primeorder::AffinePoint<Secq256K1>;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AffinePoint(pub AffinePointCore);
 
 impl Mul<Scalar> for AffinePoint {
