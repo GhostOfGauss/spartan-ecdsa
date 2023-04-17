@@ -1,39 +1,39 @@
 [package]
-name = "spartan"
-version = "0.7.1"
 authors = ["Srinath Setty <srinath@microsoft.com>, Dan Tehrani"]
-edition = "2021"
 description = "High-speed zkSNARKs without trusted setup"
-readme = "README.md"
-license-file = "LICENSE"
+edition = "2021"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
+license-file = "LICENSE"
+name = "spartan"
+readme = "README.md"
+version = "0.7.1"
 
 [dependencies]
-num-bigint-dig = "^0.7"
-secq256k1 = { path = "../secq256k1" }
-merlin = "3.0.0"
-rand = "0.7.3"
-digest = "0.8.1"
-sha3 = "0.8.2"
-byteorder = "1.3.4"
-rayon = { version = "1.3.0", optional = true }
-serde = { version = "1.0.106", features = ["derive"] }
 bincode = "1.2.1"
-subtle = { version = "2.4", default-features = false }
-rand_core = { version = "0.6", default-features = false }
-zeroize = { version = "1", default-features = false }
-itertools = "0.10.0"
+byteorder = "1.3.4"
 colored = "2.0.0"
+digest = "0.8.1"
 flate2 = "1.0.14"
-thiserror = "1.0"
-num-traits = "0.2.15"
-hex-literal = { version = "0.3" }
+hex-literal = {version = "0.3"}
+itertools = "0.10.0"
+merlin = "3.0.0"
 multiexp = "0.2.2"
+num-bigint-dig = "0.8.2"
+num-traits = "0.2.15"
+rand = "0.7.3"
+rand_core = {version = "0.6", default-features = false}
+rayon = {version = "1.3.0", optional = true}
+secq256k1 = {path = "../secq256k1"}
+serde = {version = "1.0.106", features = ["derive"]}
+sha3 = "0.8.2"
+subtle = {version = "2.4", default-features = false}
+thiserror = "1.0"
+zeroize = {version = "1", default-features = false}
 
 [dev-dependencies]
 criterion = "0.3.1"
 
 [lib]
+crate-type = ["cdylib", "rlib"]
 name = "libspartan"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
